@@ -13,7 +13,8 @@ import (
 type stage int
 
 const (
-	stagePickOp stage = iota
+	stagePickFile stage = iota
+	stagePickOp
 	stageConfig
 	stagePreview
 )
@@ -37,11 +38,18 @@ func (i opItem) Description() string { return "" }
 func (i opItem) FilterValue() string { return i.title }
 
 type model struct {
+	// window size
 	width		int
 	height	int
 
 
 	stage stage
+
+	// File
+	fileInput	textinput.Model
+	filePath	string
+	fileBytes	[]byte
+	errMsg		string
 
 	// pick operation
 	opList list.Model
@@ -51,7 +59,7 @@ type model struct {
 	prefixInput textinput.Model
 	suffixInput textinput.Model
 	splitList   list.Model
-	splitChoice string // "space", "comma", "both"
+	splitChoice string
 
 	quitting bool
 }
@@ -73,6 +81,12 @@ func initialModel() model {
 	opL := list.New(opItems, list.NewDefaultDelegate(), 0, 0)
 	opL.Title = "Choose an operation"
 	opL.SetShowHelp(false)
+	// file input
+	fi	:= textinput.New()
+	fi.Placeholder	= "/path/to/file.txt"
+	fi.Prompt		= "> "
+	fi.CharLimit = 500
+	fi.Focus()
 
 	// prefix input
 	p := textinput.New()
@@ -97,7 +111,8 @@ func initialModel() model {
 	splitL.SetShowHelp(false)
 
 	return model{
-		stage:       stagePickOp,
+		stage:       stagePickFile,
+		fileInput: 	 fi,
 		opList:      opL,
 		prefixInput: p,
 		suffixInput: s,
@@ -128,6 +143,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.quitting = true
 			return m, tea.Quit
 		case "esc":
+			if m.stage == stagePickOp {
+				m.stage = stagePickFile
+				m.fileInput.Focus()
+				return m, nil
+			}
 			if m.stage == stageConfig {
 				m.stage = stagePickOp
 				m.prefixInput.Blur()
@@ -142,6 +162,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.stage {
+	case stagePickFile:
+		var cmd tea.Cmd
+		m.fileInput, cmd = m.fileInput.Update(msg)
+
+		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+			path := m.fileInput.Value()
+			b, err := readFile(path)
+			if err != nil {
+				m.errMsg = fmt.Sprintf("Cannot read file: %v", err)
+				return m, nil
+			}
+			m.filePath = path
+			m.fileBytes = b
+			m.errMsg = ""
+			m.fileInput.Blur()
+
+			m.stage = stagePickOp
+			return m, nil
+		}
+		return m, cmd
+
 	case stagePickOp:
 		var cmd tea.Cmd
 		m.opList, cmd = m.opList.Update(msg)
@@ -230,6 +271,13 @@ func (m model) View() string {
 		hintStyle.Render("q: quit • esc: back • enter: next") + "\n\n"
 
 	switch m.stage {
+	case stagePickFile:
+		body := "Enter the path of the file to edit.\n\n" + m.fileInput.View()
+		if m.errMsg != "" {
+			body += "\n\n" + m.errMsg
+		}
+		return header + boxStyle.Render(body)
+
 	case stagePickOp:
 		return header + boxStyle.Render(m.opList.View())
 
@@ -277,4 +325,15 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+}
+
+func readFile(path string) ([]byte, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("The path is a directory")
+	}
+	return os.ReadFile(path)
 }
