@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/list"
@@ -251,12 +252,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case stagePreview:
-		// placeholder: Enter quits
+		// placeholder: goes back to menu
 		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-			m.quitting = true
-			return m, tea.Quit
+			m.stage = stagePickOp
+			return m, nil
 		}
-		return m, nil
 	}
 
 	return m, nil
@@ -296,23 +296,34 @@ func (m model) View() string {
 		}
 
 	case stagePreview:
-		// placeholder preview screen
-		config := "No extra config"
-		switch m.op {
-		case opPrefix:
-			config = fmt.Sprintf("Prefix: %q", m.prefixInput.Value())
-		case opSuffix:
-			config = fmt.Sprintf("Suffix: %q", m.suffixInput.Value())
-		case opSplit:
-			config = fmt.Sprintf("Split: %s", m.splitChoice)
-		}
+		out := transform (
+			m.fileBytes,
+			m.op,
+			m.prefixInput.Value(),
+			m.suffixInput.Value(),
+			m.splitChoice,
+		)
 
-		body := "Preview (placeholder)\n\n" +
-			fmt.Sprintf("Operation: %s\n%s\n\n", m.op, config) +
-			"Next stage will show input/output sample.\n\n" +
-			"Press Enter to quit (for now)."
+		left := "INPUT (first 10 lines)\n\n" + firstNLines(m.fileBytes, 10)
+		right := "OUTPUT (first 10 lines)\n\n" + firstNLines(out, 10)
 
-		return header + boxStyle.Render(body)
+		colW := (m.width -6) /2
+		leftBox := lipgloss.NewStyle().
+			Width(colW).
+			Border(lipgloss.RoundedBorder()).
+			Padding(1).
+			Render(left)
+
+		rightBox := lipgloss.NewStyle().
+			Width(colW).
+			Border(lipgloss.RoundedBorder()).
+			Padding(1).
+			Render(right)
+
+		content := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
+
+		footer := "\n\nPress Enter to go back. Press q to quit."
+		return header + content + footer
 	}
 
 	return header + "Unknown state."
@@ -336,4 +347,71 @@ func readFile(path string) ([]byte, error) {
 		return nil, fmt.Errorf("The path is a directory")
 	}
 	return os.ReadFile(path)
+}
+
+func transform(in []byte, op operation, prefix, suffix, splitChoice string) []byte {
+	s := string(in)
+
+	switch op {
+	case opAddComma:
+		lines := strings.Split(s, "\n")
+
+		for i := 0; i < len(lines); i++ {
+			
+			if i == len(lines)-1 && lines[i] == "" {
+				continue
+			}
+			lines[i] = lines[i] + ","
+		}
+
+		return []byte(strings.Join(lines, "\n"))
+
+	case opPrefix:
+		lines := strings.Split(s, "\n")
+		for i := 0; i < len(lines); i++ {
+			if i == len(lines)-1 && lines[i] == "" {
+				continue
+			}
+			lines[i] = prefix + lines[i]
+		}
+		return []byte(strings.Join(lines, "\n"))
+
+	case opSuffix:
+		lines := strings.Split(s, "\n")
+		for i := 0; i < len(lines); i++ {
+			if i == len(lines)-1 && lines[i] == "" {
+				continue
+			}
+			lines[i] = lines[i] + suffix
+		}
+		return []byte(strings.Join(lines, "\n"))
+
+	case opSplit:
+		switch splitChoice {
+		case "space":
+			s = strings.ReplaceAll(s, " ", " \n")
+		case "comma":
+			s = strings.ReplaceAll(s, ",", ",\n")
+		case "both":
+			s = strings.ReplaceAll(s, " ", " \n")
+			s = strings.ReplaceAll(s, ",", ",\n")
+		default:
+			s = strings.ReplaceAll(s, " ", " \n")
+			s = strings.ReplaceAll(s, ",", ",\n")
+		}
+		return []byte(s)
+
+	default:
+		return in
+
+	}
+
+}
+
+func firstNLines(b []byte, n int) string {
+	lines := strings.Split(string(b), "\n")
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
 }
