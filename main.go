@@ -18,6 +18,7 @@ const (
 	stagePickOp
 	stageConfig
 	stagePreview
+	stageSave
 )
 
 type operation string
@@ -61,6 +62,12 @@ type model struct {
 	suffixInput textinput.Model
 	splitList   list.Model
 	splitChoice string
+
+	// saving
+	saveList list.Model
+	saveChoice string
+	outputInput textinput.Model
+	statusMsg string
 
 	quitting bool
 }
@@ -111,6 +118,20 @@ func initialModel() model {
 	splitL.Title = "Split after which delimiter?"
 	splitL.SetShowHelp(false)
 
+	// save 
+	saveItems := []list.Item {
+		opItem{title: "Save as a new file", op: ""},
+		opItem{title: "Overwrite original file", op: ""},
+	}
+	saveL := list.New(saveItems, list.NewDefaultDelegate(), 0, 0)
+	saveL.Title = "How do you want to save the output?"
+	saveL.SetShowHelp(false)
+
+	oi := textinput.New()
+	oi.Placeholder = "output fiel path"
+	oi.Prompt = "> "
+	oi.CharLimit = 500
+
 	return model{
 		stage:       stagePickFile,
 		fileInput: 	 fi,
@@ -118,6 +139,8 @@ func initialModel() model {
 		prefixInput: p,
 		suffixInput: s,
 		splitList:   splitL,
+		saveList:		 saveL,
+		outputInput:	oi,
 	}
 }
 
@@ -133,6 +156,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.opList.SetSize(m.width-4, m.height-6)
 		m.splitList.SetSize(m.width-4, m.height-6)
+		m.saveList.SetSize(m.width-4, m.height-6)
 
 		return m, nil
 	}
@@ -157,6 +181,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.stage == stagePreview {
 				m.stage = stageConfig
+				return m, nil
+			}
+			if m.stage == stageSave {
+				if m.saveChoice != "" {
+					m.saveChoice = ""
+					m.statusMsg = ""
+					m.outputInput.Blur()
+					return m, nil
+				}
+				m.stage = stagePreview
 				return m, nil
 			}
 		}
@@ -252,11 +286,58 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case stagePreview:
-		// placeholder: goes back to menu
 		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-			m.stage = stagePickOp
+			m.stage = stageSave
+
+			if m.filePath != "" {
+				m.outputInput.SetValue(m.filePath + ".out.txt")
+			}
+			m.outputInput.Focus()
+
 			return m, nil
 		}
+
+	case stageSave:
+		if m.saveChoice == "" {
+			var cmd tea.Cmd
+			m.saveList, cmd = m.saveList.Update(msg)
+
+			// Choose save type
+			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				switch m.saveList.Index() {
+				case 0: 
+					m.saveChoice = "new"
+					m.outputInput.Focus()
+				case 1:
+					m.saveChoice = "overwrite"
+				}
+				return m, nil
+			}
+
+			return m, cmd
+		}
+
+		// ask for path if new file chosen
+		if m.saveChoice == "new" {
+			var cmd tea.Cmd
+			m.outputInput, cmd = m.outputInput.Update(msg)
+
+			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				m.statusMsg = "Placeholder save new for now"
+				return m, nil
+			}
+
+			return m, cmd
+		}
+
+		// Overwrite file chosen
+		if m.saveChoice == "overwrite" {
+			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				m.statusMsg = "Placeholder overwrite for now"
+				return m, nil
+			}
+		}
+
 	}
 
 	return m, nil
@@ -324,6 +405,30 @@ func (m model) View() string {
 
 		footer := "\n\nPress Enter to go back. Press q to quit."
 		return header + content + footer
+
+	case stageSave:
+		if m.saveChoice == "" {
+			return header + boxStyle.Render(m.saveList.View())
+		}
+
+		if m.saveChoice == "new" {
+			body := "Enter output file path:\n\n" + m.outputInput.View()
+			if m.statusMsg != "" {
+				body += "\n\n" + m.statusMsg
+			}
+			return header + boxStyle.Render(body)
+		}
+
+		if m.saveChoice == "overwrite" {
+			body := "overwrite original file:\n\n" + m.filePath + "\n\nPress enter to confirm."
+			if m.statusMsg != "" {
+				body += "\n\n" + m.statusMsg
+			}
+			return header + boxStyle.Render(body)
+
+		}
+
+
 	}
 
 	return header + "Unknown state."
