@@ -128,7 +128,7 @@ func initialModel() model {
 	saveL.SetShowHelp(false)
 
 	oi := textinput.New()
-	oi.Placeholder = "output fiel path"
+	oi.Placeholder = "output file path"
 	oi.Prompt = "> "
 	oi.CharLimit = 500
 
