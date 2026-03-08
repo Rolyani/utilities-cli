@@ -68,6 +68,7 @@ type model struct {
 	saveChoice string
 	outputInput textinput.Model
 	statusMsg string
+	outputBytes []byte
 
 	quitting bool
 }
@@ -110,9 +111,9 @@ func initialModel() model {
 
 	// split list
 	splitItems := []list.Item{
-		opItem{title: "Space", op: ""},          // reuse opItem purely as list item
-		opItem{title: "Comma", op: ""},          // (op not used here)
-		opItem{title: "Space and comma", op: ""}, // (op not used here)
+		opItem{title: "Space", op: ""},
+		opItem{title: "Comma", op: ""},
+		opItem{title: "Space and comma", op: ""},
 	}
 	splitL := list.New(splitItems, list.NewDefaultDelegate(), 0, 0)
 	splitL.Title = "Split after which delimiter?"
@@ -246,6 +247,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.prefixInput, cmd = m.prefixInput.Update(msg)
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				m.outputBytes = transform (
+					m.fileBytes,
+					m.op,
+					m.prefixInput.Value(),
+					m.suffixInput.Value(),
+					m.splitChoice,
+				)
 				m.stage = stagePreview
 				return m, nil
 			}
@@ -255,6 +263,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.suffixInput, cmd = m.suffixInput.Update(msg)
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				m.outputBytes = transform (
+					m.fileBytes,
+					m.op,
+					m.prefixInput.Value(),
+					m.suffixInput.Value(),
+					m.splitChoice,
+				)
 				m.stage = stagePreview
 				return m, nil
 			}
@@ -272,6 +287,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case 2:
 					m.splitChoice = "both"
 				}
+				m.outputBytes = transform (
+					m.fileBytes,
+					m.op,
+					m.prefixInput.Value(),
+					m.suffixInput.Value(),
+					m.splitChoice,
+				)
 				m.stage = stagePreview
 				return m, nil
 			}
@@ -279,6 +301,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case opAddComma:
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				m.outputBytes = transform (
+					m.fileBytes,
+					m.op,
+					m.prefixInput.Value(),
+					m.suffixInput.Value(),
+					m.splitChoice,
+				)
 				m.stage = stagePreview
 				return m, nil
 			}
@@ -302,10 +331,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.saveList, cmd = m.saveList.Update(msg)
 
-			// Choose save type
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				m.statusMsg = ""
 				switch m.saveList.Index() {
-				case 0: 
+				case 0:
 					m.saveChoice = "new"
 					m.outputInput.Focus()
 				case 1:
@@ -315,15 +344,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, cmd
-		}
 
+		}
 		// ask for path if new file chosen
 		if m.saveChoice == "new" {
 			var cmd tea.Cmd
 			m.outputInput, cmd = m.outputInput.Update(msg)
 
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-				m.statusMsg = "Placeholder save new for now"
+				outPath := m.outputInput.Value()
+				if outPath == "" {
+					m.statusMsg = "Output path cannot be empty."
+					return m, nil
+				}
+
+				err := writeNewFile(outPath, m.outputBytes)
+				if err != nil {
+					m.statusMsg = fmt.Sprintf("Save Failed: %v", err)
+					return m, nil
+				}
+
+				m.statusMsg = "Saved successfully to: " + outPath
 				return m, nil
 			}
 
@@ -333,8 +374,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Overwrite file chosen
 		if m.saveChoice == "overwrite" {
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-				m.statusMsg = "Placeholder overwrite for now"
+				backupPath, err := backupFile(m.filePath)
+				if err != nil {
+					m.statusMsg = fmt.Sprintf("Backup failed: %v", err)
+					return m, nil
+				}
+
+				err = overwriteFile(m.filePath, m.outputBytes)
+				if err != nil {
+					m.statusMsg = fmt.Sprintf("Overwrite failed: %v", err)
+					return m, nil
+				}
+
+				m.statusMsg = "Overwritten successfully. Backup created: " + backupPath
 				return m, nil
+
 			}
 		}
 
@@ -377,13 +431,7 @@ func (m model) View() string {
 		}
 
 	case stagePreview:
-		out := transform (
-			m.fileBytes,
-			m.op,
-			m.prefixInput.Value(),
-			m.suffixInput.Value(),
-			m.splitChoice,
-		)
+		out := m.outputBytes
 
 		left := "INPUT (first 10 lines)\n\n" + firstNLines(m.fileBytes, 10)
 		right := "OUTPUT (first 10 lines)\n\n" + firstNLines(out, 10)
@@ -416,11 +464,12 @@ func (m model) View() string {
 			if m.statusMsg != "" {
 				body += "\n\n" + m.statusMsg
 			}
+			body += "\n\nPress enter to save."
 			return header + boxStyle.Render(body)
 		}
 
 		if m.saveChoice == "overwrite" {
-			body := "overwrite original file:\n\n" + m.filePath + "\n\nPress enter to confirm."
+			body := "overwrite original file:\n\n" + m.filePath + "\n\nA .bak backup will be created first. \n\nPress enter to confirm."
 			if m.statusMsg != "" {
 				body += "\n\n" + m.statusMsg
 			}
@@ -519,4 +568,55 @@ func firstNLines(b []byte, n int) string {
 		lines = lines[:n]
 	}
 	return strings.Join(lines, "\n")
+}
+
+func writeNewFile(path string, data []byte) error {
+	return os.WriteFile(path, data, 0644)
+}
+
+func backupFile(path string) (string, error) {
+	original, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	backupPath := path + ".bak"
+	err = os.WriteFile(backupPath, original, 0644)
+	if err != nil {
+		return "", err
+	}
+
+	return backupPath, nil
+}
+
+func overwriteFile(path string, data []byte) error {
+	dir := "."
+	if idx := strings.LastIndex(path, string(os.PathSeparator)); idx != -1 {
+		dir = path[:idx]
+		if dir == "" {
+			dir = string(os.PathSeparator)
+		}
+	}
+
+	tmp, err := os.CreateTemp(dir, "utilities-cli-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+
+	defer func() {
+		tmp.Close()
+		os.Remove(tmpName)
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		return err
+	}
+
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpName, path)
+
 }
