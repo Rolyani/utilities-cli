@@ -165,7 +165,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// global keys
 	if km, ok := msg.(tea.KeyMsg); ok {
 		switch km.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 		case "esc":
@@ -403,7 +403,7 @@ func (m model) View() string {
 	}
 
 	header := titleStyle.Render("utilities-cli") + "\n" +
-		hintStyle.Render("q: quit • esc: back • enter: next") + "\n\n"
+		hintStyle.Render("ctrl + c: quit • esc: back • enter: next") + "\n\n"
 
 	switch m.stage {
 	case stagePickFile:
@@ -425,7 +425,7 @@ func (m model) View() string {
 		case opSplit:
 			return header + boxStyle.Render(m.splitList.View())
 		case opAddComma:
-			return header + boxStyle.Render("No configuration needed.\n\nPress Enter to continue.")
+			return header + boxStyle.Render("No further configuration needed.\n\nPress Enter to continue.")
 		default:
 			return header + boxStyle.Render("Unknown operation.\n\nPress esc to go back.")
 		}
@@ -451,7 +451,7 @@ func (m model) View() string {
 
 		content := lipgloss.JoinHorizontal(lipgloss.Top, leftBox, rightBox)
 
-		footer := "\n\nPress Enter to go back. Press q to quit."
+		footer := "\n\nPress Enter to continue. Press esc to go back. Press ctrl + c to quit."
 		return header + content + footer
 
 	case stageSave:
