@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+
+	"Rolyani/utilities-cli/transform"
 )
 
 type stage int
@@ -247,9 +249,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.prefixInput, cmd = m.prefixInput.Update(msg)
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-				m.outputBytes = transform (
+				m.outputBytes = transform.Apply(
 					m.fileBytes,
-					m.op,
+					transform.Operation(m.op),
 					m.prefixInput.Value(),
 					m.suffixInput.Value(),
 					m.splitChoice,
@@ -263,9 +265,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.suffixInput, cmd = m.suffixInput.Update(msg)
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-				m.outputBytes = transform (
+				m.outputBytes = transform.Apply(
 					m.fileBytes,
-					m.op,
+					transform.Operation(m.op),
 					m.prefixInput.Value(),
 					m.suffixInput.Value(),
 					m.splitChoice,
@@ -287,9 +289,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				case 2:
 					m.splitChoice = "both"
 				}
-				m.outputBytes = transform (
+				m.outputBytes = transform.Apply(
 					m.fileBytes,
-					m.op,
+					transform.Operation(m.op),
 					m.prefixInput.Value(),
 					m.suffixInput.Value(),
 					m.splitChoice,
@@ -301,9 +303,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case opAddComma:
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-				m.outputBytes = transform (
+				m.outputBytes = transform.Apply(
 					m.fileBytes,
-					m.op,
+					transform.Operation(m.op),
 					m.prefixInput.Value(),
 					m.suffixInput.Value(),
 					m.splitChoice,
@@ -433,8 +435,8 @@ func (m model) View() string {
 	case stagePreview:
 		out := m.outputBytes
 
-		left := "INPUT (first 10 lines)\n\n" + firstNLines(m.fileBytes, 10)
-		right := "OUTPUT (first 10 lines)\n\n" + firstNLines(out, 10)
+		left := "INPUT (first 10 lines)\n\n" + transform.FirstNLines(m.fileBytes, 10)
+		right := "OUTPUT (first 10 lines)\n\n" + transform.FirstNLines(out, 10)
 
 		colW := (m.width -6) /2
 		leftBox := lipgloss.NewStyle().
@@ -501,73 +503,6 @@ func readFile(path string) ([]byte, error) {
 		return nil, fmt.Errorf("The path is a directory")
 	}
 	return os.ReadFile(path)
-}
-
-func transform(in []byte, op operation, prefix, suffix, splitChoice string) []byte {
-	s := string(in)
-
-	switch op {
-	case opAddComma:
-		lines := strings.Split(s, "\n")
-
-		for i := 0; i < len(lines); i++ {
-			
-			if i == len(lines)-1 && lines[i] == "" {
-				continue
-			}
-			lines[i] = lines[i] + ","
-		}
-
-		return []byte(strings.Join(lines, "\n"))
-
-	case opPrefix:
-		lines := strings.Split(s, "\n")
-		for i := 0; i < len(lines); i++ {
-			if i == len(lines)-1 && lines[i] == "" {
-				continue
-			}
-			lines[i] = prefix + lines[i]
-		}
-		return []byte(strings.Join(lines, "\n"))
-
-	case opSuffix:
-		lines := strings.Split(s, "\n")
-		for i := 0; i < len(lines); i++ {
-			if i == len(lines)-1 && lines[i] == "" {
-				continue
-			}
-			lines[i] = lines[i] + suffix
-		}
-		return []byte(strings.Join(lines, "\n"))
-
-	case opSplit:
-		switch splitChoice {
-		case "space":
-			s = strings.ReplaceAll(s, " ", " \n")
-		case "comma":
-			s = strings.ReplaceAll(s, ",", ",\n")
-		case "both":
-			s = strings.ReplaceAll(s, " ", " \n")
-			s = strings.ReplaceAll(s, ",", ",\n")
-		default:
-			s = strings.ReplaceAll(s, " ", " \n")
-			s = strings.ReplaceAll(s, ",", ",\n")
-		}
-		return []byte(s)
-
-	default:
-		return in
-
-	}
-
-}
-
-func firstNLines(b []byte, n int) string {
-	lines := strings.Split(string(b), "\n")
-	if len(lines) > n {
-		lines = lines[:n]
-	}
-	return strings.Join(lines, "\n")
 }
 
 func writeNewFile(path string, data []byte) error {
