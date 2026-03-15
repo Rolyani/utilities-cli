@@ -20,6 +20,8 @@ func (m model) View() string {
 		hintStyle.Render("ctrl + c: quit • esc: back • enter: next") + "\n\n"
 
 	switch m.stage {
+	case stagePickFileSource:
+		return header + boxStyle.Render(m.fileSourceList.View())
 	case stagePickFile:
 		body := "Enter the path of the file to edit.\n\n" + m.fileInput.View()
 		if m.errMsg != "" {

@@ -9,7 +9,8 @@ import (
 type stage int
 
 const (
-	stagePickFile stage = iota
+	stagePickFileSource stage = iota
+	stagePickFile
 	stagePickOp
 	stageConfig
 	stagePreview
@@ -32,6 +33,11 @@ type model struct {
 
 
 	stage stage
+
+	// File Source
+	fileSourceList list.Model
+	fileList list.Model
+	selectedFile string
 
 	// File
 	fileInput	textinput.Model

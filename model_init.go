@@ -6,10 +6,19 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 )
 
+type fileItem struct {
+	title string
+	path string
+}
+
 type opItem struct {
 	title string
 	op    operation
 }
+
+func (i fileItem) Title() string { return i.title }
+func (i fileItem) Description() string { return i.path }
+func (i fileItem) FilterValue() string { return i.title }
 
 func (i opItem) Title() string       { return i.title }
 func (i opItem) Description() string { return "" }
@@ -26,6 +35,20 @@ func initialModel() model {
 	opL := list.New(opItems, list.NewDefaultDelegate(), 0, 0)
 	opL.Title = "Choose an operation"
 	opL.SetShowHelp(false)
+
+	// file source
+	sourceItems := []list.Item {
+		opItem {title: "Choose from files folder", op: ""},
+		opItem {title: "Enter a custom file path", op: ""},
+	}
+	sourceList := list.New(sourceItems, list.NewDefaultDelegate(), 0, 0)
+	sourceList.Title = "How would you like to choose a file?"
+	sourceList.SetShowHelp(false)
+
+	fileL := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	fileL.Title = "Choose a file"
+	fileL.SetShowHelp(false)
+
 	// file input
 	fi	:= textinput.New()
 	fi.Placeholder	= "/path/to/file.txt"
@@ -70,7 +93,9 @@ func initialModel() model {
 	oi.CharLimit = 500
 
 	return model{
-		stage:       stagePickFile,
+		stage:       stagePickFileSource,
+		fileSourceList: sourceList,
+		fileList: fileL,
 		fileInput: 	 fi,
 		opList:      opL,
 		prefixInput: p,

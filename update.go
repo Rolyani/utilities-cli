@@ -15,6 +15,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
+		m.fileSourceList.SetSize(m.width-4, m.height-6)
+		m.fileList.SetSize(m.width-4, m.height-6)
 		m.opList.SetSize(m.width-4, m.height-6)
 		m.splitList.SetSize(m.width-4, m.height-6)
 		m.saveList.SetSize(m.width-4, m.height-6)
@@ -30,8 +32,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case "esc":
 			if m.stage == stagePickOp {
-				m.stage = stagePickFile
-				m.fileInput.Focus()
+				m.stage = stagePickFileSource
+				return m, nil
+			}
+			if m.stage == stagePickFile {
+				m.stage = stagePickFileSource
+				m.fileInput.Blur()
 				return m, nil
 			}
 			if m.stage == stageConfig {
@@ -58,6 +64,25 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.stage {
+	case stagePickFileSource:
+		var cmd tea.Cmd
+		m.fileSourceList, cmd = m.fileSourceList.Update(msg)
+
+		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+			switch m.fileSourceList.Index() {
+			case 0:
+				m.stage = stagePickFile
+				// temp, for testing
+				return m, nil
+			case 1:
+				m.stage = stagePickFile
+				m.fileInput.Focus()
+				return m, nil
+			}
+		}
+
+		return m, cmd
+
 	case stagePickFile:
 		var cmd tea.Cmd
 		m.fileInput, cmd = m.fileInput.Update(msg)
