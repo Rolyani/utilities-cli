@@ -4,7 +4,35 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"path/filepath"
+
+	"github.com/charmbracelet/bubbles/list"
 )
+
+func listFiles(dir string) ([]list.Item, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	items := []list.Item{}
+
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+
+		name := e.Name()
+
+		items = append(items, fileItem {
+			title: name,
+			path: filepath.Join(dir, name),
+		})
+	}
+
+	return items, nil
+
+}
 
 func readFile(path string) ([]byte, error) {
 	info, err := os.Stat(path)

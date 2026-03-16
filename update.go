@@ -15,11 +15,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		m.fileSourceList.SetSize(m.width-4, m.height-6)
-		m.fileList.SetSize(m.width-4, m.height-6)
-		m.opList.SetSize(m.width-4, m.height-6)
-		m.splitList.SetSize(m.width-4, m.height-6)
-		m.saveList.SetSize(m.width-4, m.height-6)
+		m.fileSourceList.SetSize(m.width-8, m.height-8)
+		m.fileList.SetSize(m.width-8, m.height-8)
+		m.opList.SetSize(m.width-8, m.height-8)
+		m.splitList.SetSize(m.width-8, m.height-8)
+		m.saveList.SetSize(m.width-8, m.height-8)
 
 		return m, nil
 	}
@@ -71,8 +71,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
 			switch m.fileSourceList.Index() {
 			case 0:
+				items, err := listFiles("files")
+				if err != nil {
+					m.errMsg = fmt.Sprintf("Cannot read files in directory: %v", err)
+					return m, nil
+				}
+
+				m.fileList.SetItems(items)
+				m.fileList.SetSize(m.width-8, m.height-8)
+
+				m.errMsg = ""
 				m.stage = stagePickFile
-				// temp, for testing
 				return m, nil
 			case 1:
 				m.stage = stagePickFile
@@ -84,6 +93,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case stagePickFile:
+		// file list found
+		if len(m.fileList.Items()) > 0 {
+			var cmd tea.Cmd
+			m.fileList, cmd = m.fileList.Update(msg)
+
+			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+				selected := m.fileList.SelectedItem()
+				it, ok := selected.(fileItem)
+				if !ok {
+					m.errMsg = "Could not read selected file item."
+					return m, nil
+				}
+
+				b, err := readFile(it.path)
+				if err != nil {
+					m.errMsg = fmt.Sprintf("Cannot read file: %v", err)
+					return m, nil
+				}
+
+				m.filePath = it.path
+				m.fileBytes = b
+				m.errMsg = ""
+
+				m.stage = stagePickOp
+				return m, nil
+			}
+
+			return m, cmd
+
+		}
+
+		// no file list
 		var cmd tea.Cmd
 		m.fileInput, cmd = m.fileInput.Update(msg)
 

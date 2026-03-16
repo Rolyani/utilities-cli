@@ -21,8 +21,11 @@ func (m model) View() string {
 
 	switch m.stage {
 	case stagePickFileSource:
-		return header + boxStyle.Render(m.fileSourceList.View())
+		return header + m.fileSourceList.View()
 	case stagePickFile:
+		if len(m.fileList.Items()) > 0 {
+			return header + m.fileList.View()
+		}
 		body := "Enter the path of the file to edit.\n\n" + m.fileInput.View()
 		if m.errMsg != "" {
 			body += "\n\n" + m.errMsg
