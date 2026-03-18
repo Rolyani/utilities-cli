@@ -10,7 +10,8 @@ type stage int
 
 const (
 	stagePickFileSource stage = iota
-	stagePickFile
+	stagePickFileList
+	stagePickFilePath
 	stagePickOp
 	stageConfig
 	stagePreview
@@ -31,7 +32,6 @@ type model struct {
 	width		int
 	height	int
 
-
 	stage stage
 
 	// File Source
@@ -44,6 +44,8 @@ type model struct {
 	filePath	string
 	fileBytes	[]byte
 	errMsg		string
+	defaultFilesDir string
+	fileListEmpty bool
 
 	// pick operation
 	opList list.Model

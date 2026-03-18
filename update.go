@@ -35,9 +35,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.stage = stagePickFileSource
 				return m, nil
 			}
-			if m.stage == stagePickFile {
+			if m.stage == stagePickFileList {
+				m.fileListEmpty = false
+				m.fileList.SetItems(nil)
+				m.errMsg = ""
 				m.stage = stagePickFileSource
+				return m, nil
+			}
+			if m.stage == stagePickFilePath {
 				m.fileInput.Blur()
+				m.errMsg = ""
+				m.stage = stagePickFileSource
 				return m, nil
 			}
 			if m.stage == stageConfig {
@@ -71,7 +79,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
 			switch m.fileSourceList.Index() {
 			case 0:
-				items, err := listFiles("files")
+				err := ensureDir(m.defaultFilesDir)
+				if err != nil {
+					m.errMsg = fmt.Sprintf("Cannot create files directory: %v", err)
+					return m, nil
+				}
+
+				items, err := listFiles(m.defaultFilesDir)
 				if err != nil {
 					m.errMsg = fmt.Sprintf("Cannot read files in directory: %v", err)
 					return m, nil
@@ -79,52 +93,67 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 				m.fileList.SetItems(items)
 				m.fileList.SetSize(m.width-8, m.height-8)
-
 				m.errMsg = ""
-				m.stage = stagePickFile
+
+				if len(items) == 0 {
+					m.fileListEmpty = true
+				} else {
+					m.fileListEmpty = false
+				}
+
+				m.stage = stagePickFileList
 				return m, nil
 			case 1:
-				m.stage = stagePickFile
+				m.fileList.SetItems(nil)
+				m.fileListEmpty = false
+				m.errMsg = ""
 				m.fileInput.Focus()
+				m.stage = stagePickFilePath
 				return m, nil
 			}
 		}
 
 		return m, cmd
 
-	case stagePickFile:
-		// file list found
-		if len(m.fileList.Items()) > 0 {
-			var cmd tea.Cmd
-			m.fileList, cmd = m.fileList.Update(msg)
-
+	case stagePickFileList:
+		if m.fileListEmpty {
 			if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
-				selected := m.fileList.SelectedItem()
-				it, ok := selected.(fileItem)
-				if !ok {
-					m.errMsg = "Could not read selected file item."
-					return m, nil
-				}
-
-				b, err := readFile(it.path)
-				if err != nil {
-					m.errMsg = fmt.Sprintf("Cannot read file: %v", err)
-					return m, nil
-				}
-
-				m.filePath = it.path
-				m.fileBytes = b
-				m.errMsg = ""
-
-				m.stage = stagePickOp
+				m.fileListEmpty = false
+				m.fileInput.Focus()
+				m.stage = stagePickFilePath
 				return m, nil
 			}
-
-			return m, cmd
+			return m, nil
 
 		}
 
-		// no file list
+		var cmd tea.Cmd
+		m.fileList, cmd = m.fileList.Update(msg)
+
+		if km, ok := msg.(tea.KeyMsg); ok && km.String() == "enter" {
+			selected := m.fileList.SelectedItem()
+			it, ok := selected.(fileItem)
+			if !ok {
+				m.errMsg = "Could not read selected file item."
+				return m, nil
+			}
+
+			b, err := readFile(it.path)
+			if err != nil {
+				m.errMsg = fmt.Sprintf("Cannot read file: %v", err)
+				return m, nil
+			}
+
+			m.filePath = it.path
+			m.fileBytes = b
+			m.errMsg = ""
+			m.stage = stagePickOp
+			return m, nil
+		}
+
+		return m, cmd
+			
+	case stagePickFilePath:
 		var cmd tea.Cmd
 		m.fileInput, cmd = m.fileInput.Update(msg)
 

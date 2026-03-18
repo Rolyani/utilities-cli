@@ -103,6 +103,7 @@ func initialModel() model {
 		splitList:   splitL,
 		saveList:		 saveL,
 		outputInput:	oi,
+		defaultFilesDir: "files",
 	}
 }
 

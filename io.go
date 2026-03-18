@@ -9,6 +9,10 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 )
 
+func ensureDir(path string) error {
+	return os.MkdirAll(path, 0755)
+}
+
 func listFiles(dir string) ([]list.Item, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {

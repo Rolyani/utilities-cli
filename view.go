@@ -20,18 +20,24 @@ func (m model) View() string {
 		hintStyle.Render("ctrl + c: quit • esc: back • enter: next") + "\n\n"
 
 	switch m.stage {
-	case stagePickFileSource:
+case stagePickFileSource:
 		return header + m.fileSourceList.View()
-	case stagePickFile:
-		if len(m.fileList.Items()) > 0 {
-			return header + m.fileList.View()
-		}
-		body := "Enter the path of the file to edit.\n\n" + m.fileInput.View()
-		if m.errMsg != "" {
-			body += "\n\n" + m.errMsg
-		}
-		return header + boxStyle.Render(body)
 
+case stagePickFileList:
+	if m.fileListEmpty {
+		body := "No files were found in the default files directory.\n\n" +
+			"Directory: " + m.defaultFilesDir + "\n\n" +
+			"Add files there, or press Enter to enter a custom file path."
+		return header + boxStyle.Render(body)
+	}
+	return header + m.fileList.View()
+
+case stagePickFilePath:
+	body := "Enter the path of the file to edit.\n\n" + m.fileInput.View()
+	if m.errMsg != "" {
+		body += "\n\n" + m.errMsg
+	}
+	return header + boxStyle.Render(body)
 	case stagePickOp:
 		return header + boxStyle.Render(m.opList.View())
 
